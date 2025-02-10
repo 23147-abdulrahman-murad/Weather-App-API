@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather App</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 400px;
+            position: relative;
+            padding-top: 100px;
+        }
+
+        .ncst {
+            position: absolute;
+            top: 10px;
+            left: 52%;
+            transform: translateX(-50%);
+            width: 80px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            text-align: left;
+        }
+
+        #result p {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        #forecastChart {
+            width: 100%;
+            height: 200px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="ncst.png" alt="NCST Logo" class="ncst">
+        <h1>Weather App</h1>
+
+        <label for="cityInput">Enter City:</label>
+        <input type="text" id="cityInput" placeholder="e.g., Manama">
+        <button onclick="getWeather()">Get Weather</button>
+
+        <div id="result"></div>
+        <canvas id="forecastChart"></canvas>
+    </div>
+
+    <script>
+        const apiKey = '958d2ac06d534202b9e122747250602'; // Replace with your actual API key
+        let myChart;
+
+        // City Autocomplete
+        const cityInput = document.getElementById('cityInput');
+        const datalist = document.createElement('datalist');
+        datalist.id = 'city-suggestions';
+        cityInput.setAttribute('list', 'city-suggestions');
+        document.body.appendChild(datalist);
+
+        cityInput.addEventListener('input', () => {
+            const inputValue = cityInput.value;
+            if (inputValue.length < 3) {
+                datalist.innerHTML = '';
+                return;
+            }
+
+            fetch(`https://api.weatherapi.com/v1/search.json?key=${apiKey}&q=${inputValue}`)
+                .then(response => response.json())
+                .then(cities => {
+                    datalist.innerHTML = '';
+                    cities.forEach(city => {
+                        const option = document.createElement('option');
+                        option.value = city.name;
+                        datalist.appendChild(option);
+                    });
+                })
+                .catch(error => console.error("Error fetching city suggestions:", error));
+        });
+
+        function getWeather() {
+            const city = document.getElementById('cityInput').value;
+
+            if (!city) {
+                alert("Please enter a city name.");
+                return;
+            }
+
+            const currentUrl = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city}`;
+            const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city}&days=7`;
+
+            Promise.all([
+                fetch(currentUrl).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                }),
+                fetch(forecastUrl).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+            ])
+            .then(([currentData, forecastData]) => {
+                const temperature = currentData.current.temp_c;
+                const description = currentData.current.condition.text;
+                const humidity = currentData.current.humidity;
+                const windSpeed = currentData.current.wind_kph;
+
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = `<p>Temperature: ${temperature}°C</p><p>Description: ${description}</p><p>Humidity: ${humidity}%</p><p>Wind Speed: ${windSpeed} km/h</p>`;
+
+                const forecastChartCanvas = document.getElementById('forecastChart').getContext('2d');
+                if (myChart) {
+                    myChart.destroy();
+                }
+
+                const forecastDays = forecastData.forecast.forecastday;
+                const chartLabels = forecastDays.map(day => day.date);
+                const chartData = forecastDays.map(day => day.day.avgtemp_c);
+
+                myChart = new Chart(forecastChartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: 'Average Temperature (°C)',
+                            data: chartData,
+                            borderColor: 'blue',
+                            borderWidth: 1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+
+            })
+            .catch(error => {
+                console.error('Error loading weather data:', error);
+                alert('Error loading weather data. Please check the city name and try again.');
+            });
+        }
+    </script>
+
+</body>
+</html>
